@@ -6,6 +6,10 @@ ifeq "${DEVELOP}" "1"
 FEATURES := ${FEATURES},develop
 endif
 
+ifeq "${PROVISIONER}" "1"
+FEATURES := ${FEATURES},develop-provisioner
+endif
+
 .PHONY: build
 build:
 	cargo build --release --features $(FEATURES)

@@ -25,7 +25,7 @@ dependencies = [
 [[package]]
 name = "apdu-dispatch"
 version = "0.0.1"
-source = "git+https://github.com/solokeys/apdu-dispatch?branch=main#760c719aa7298362bdaa79f84e16a27f3c3f49e7"
+source = "git+https://github.com/solokeys/apdu-dispatch?branch=main#4ae64d8733ba3407f3b92e5ebba6be7c56a4f5bf"
 dependencies = [
  "delog",
  "heapless 0.6.1",
@@ -391,12 +391,34 @@ dependencies = [
 
 [[package]]
 name = "der"
+version = "0.2.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce93ba4502a73722aa4b955d97f4b1bd26f4f8da74315399ca58fb88fe2bdaae"
+dependencies = [
+ "der_derive 0.2.2",
+ "typenum",
+]
+
+[[package]]
+name = "der"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83dc83d0b59f92103d8e661e60526338ad3aeb0c15fa4a29a14b6a9b1ac8a43c"
 dependencies = [
- "der_derive",
+ "der_derive 0.3.0",
  "typenum",
+]
+
+[[package]]
+name = "der_derive"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4fbbc8e9e0db3a9068cffa43dcf0e314eb9feff083b7afa6eaa9e698412bb23"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "synstructure",
 ]
 
 [[package]]
@@ -454,7 +476,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b568b5e72165dd8913ac2aad6a60cb9cb297287615544c523c37f9247b58fc8"
 dependencies = [
- "der",
+ "der 0.3.3",
  "elliptic-curve",
  "hmac",
  "signature",
@@ -703,8 +725,8 @@ checksum = "65d9ab155e6b8e53ae742a06a850b2645e333d40d89ef2e28f190763742d768c"
 
 [[package]]
 name = "iso7816"
-version = "0.1.0"
-source = "git+https://github.com/ycrypto/iso7816?branch=main#02250ae70063b5307314a219cca4cf3918bb10ba"
+version = "0.1.0-alpha.0"
+source = "git+https://github.com/ycrypto/iso7816?branch=main#e2dae292be70a4138e8bae6290c4022562ce1740"
 dependencies = [
  "heapless 0.6.1",
  "heapless-bytes",
@@ -847,6 +869,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b16bd47d9e329435e309c58469fe0791c2d0d1ba96ec0954152a5ae2b04387dc"
 
 [[package]]
+name = "micro-ecc-sys"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b861c7e7eba25ec3fe0fde221a46bf38bd1ad200a5404b6f7e45c99b74a00fa"
+dependencies = [
+ "bindgen 0.56.0",
+ "cc",
+ "cty 0.2.1",
+]
+
+[[package]]
 name = "nb"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -883,6 +916,19 @@ dependencies = [
  "interchange",
  "iso7816",
  "nb 1.0.0",
+]
+
+[[package]]
+name = "nisty"
+version = "0.1.0-alpha.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a50765b4bf261cc343bc5eede18fcd48d1fbe0e5e9352f43a9d0423ddae3ef30"
+dependencies = [
+ "cosey",
+ "der 0.2.10",
+ "heapless-bytes",
+ "micro-ecc-sys",
+ "sha2",
 ]
 
 [[package]]
@@ -961,7 +1007,7 @@ dependencies = [
 [[package]]
 name = "oath-authenticator"
 version = "0.0.0-pre"
-source = "git+https://github.com/trussed-dev/oath-authenticator?branch=main#91a91cbeb8c9011e0297678c7fd75d5b93e734cb"
+source = "git+https://github.com/trussed-dev/oath-authenticator?branch=main#9e58709a581a20693fcca751aca06155703e3191"
 dependencies = [
  "apdu-dispatch",
  "delog",
@@ -998,7 +1044,7 @@ version = "0.1.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c11579292e2d7a61626c5ef1c0bddb6a21d6b0c6f9d36ea83d2c63da5bbc3d1"
 dependencies = [
- "der",
+ "der 0.3.3",
  "ecdsa",
  "elliptic-curve",
  "p256",
@@ -1082,6 +1128,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a152013215dca273577e18d2bf00fa862b89b24169fb78c4c95aeb07992c9cec"
 dependencies = [
  "unicode-xid",
+]
+
+[[package]]
+name = "provisioner-app"
+version = "0.1.0"
+dependencies = [
+ "apdu-dispatch",
+ "delog",
+ "heapless 0.6.1",
+ "heapless-bytes",
+ "littlefs2",
+ "lpc55-hal",
+ "nisty",
+ "salty",
+ "trussed",
 ]
 
 [[package]]
@@ -1178,6 +1239,7 @@ dependencies = [
  "oath-authenticator",
  "panic-halt",
  "piv-authenticator",
+ "provisioner-app",
  "rtt-target",
  "trussed",
  "usb-device",
@@ -1364,7 +1426,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 [[package]]
 name = "trussed"
 version = "0.1.0"
-source = "git+https://github.com/trussed-dev/trussed?branch=main#ef4cda4560f41c9e5e2f1693d38e47a4cb22cc90"
+source = "git+https://github.com/trussed-dev/trussed?branch=main#f748c49692f0e42ff7c66833c7c80ef0acc8adb3"
 dependencies = [
  "aes",
  "bitflags",

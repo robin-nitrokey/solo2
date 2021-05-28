@@ -10,8 +10,6 @@ use panic_halt as _;
 extern crate delog;
 generate_macros!();
 
-use core::convert::TryInto;
-
 use board::clock_controller;
 
 use c_stubs as _;
@@ -140,11 +138,7 @@ pub fn init_board(
     types::CtaphidDispach,
     types::Trussed,
 
-    types::Piv,
-    types::Totp,
-    types::FidoApp<fido_authenticator::NonSilentAuthenticator>,
-    ndef_app::App<'static>,
-    types::ManagementApp,
+    types::Apps,
 
     Option<types::UsbClasses>,
     Option<types::Iso14443>,
@@ -409,27 +403,11 @@ pub fn init_board(
 
     if let Some(iso14443) = &mut iso14443 { iso14443.poll(); }
 
-    let (fido_trussed_requester, fido_trussed_responder) = trussed::pipe::TrussedInterchange::claim()
-        .expect("could not setup FIDO TrussedInterchange");
-    let mut fido_client_id = littlefs2::path::PathBuf::new();
-    fido_client_id.push(b"fido2\0".try_into().unwrap());
-
-    let (management_trussed_requester, management_trussed_responder) = trussed::pipe::TrussedInterchange::claim()
-        .expect("could not setup FIDO TrussedInterchange");
-    let mut management_client_id = littlefs2::path::PathBuf::new();
-    management_client_id.push(b"management\0".try_into().unwrap());
-
     let (contact_requester, contact_responder) = apdu_dispatch::interchanges::Contact::claim()
         .expect("could not setup ccid ApduInterchange");
 
     let (hid_requester, hid_responder) = ctaphid_dispatch::types::HidInterchange::claim()
         .expect("could not setup HidInterchange");
-
-    let (piv_trussed_requester, piv_trussed_responder) = trussed::pipe::TrussedInterchange::claim()
-        .expect("could not setup PIV TrussedInterchange");
-
-    let (totp_trussed_requester, totp_trussed_responder) = trussed::pipe::TrussedInterchange::claim()
-        .expect("could not setup TOTP TrussedInterchange");
 
     info!("usb class start {} ms",perf_timer.elapsed().0/1000);
     let usb_classes =
@@ -516,47 +494,6 @@ pub fn init_board(
     let board = Board::new(rng, store, solobee_interface);
     let mut trussed = trussed::service::Service::new(board);
 
-    let mut piv_client_id = littlefs2::path::PathBuf::new();
-    piv_client_id.push(b"piv\0".try_into().unwrap());
-    assert!(trussed.add_endpoint(piv_trussed_responder, piv_client_id).is_ok());
-
-    let mut totp_client_id = littlefs2::path::PathBuf::new();
-    totp_client_id.push(b"totp\0".try_into().unwrap());
-    assert!(trussed.add_endpoint(totp_trussed_responder, totp_client_id).is_ok());
-
-    let syscaller = types::Syscall::default();
-    let piv_trussed = types::TrussedClient::new(
-        piv_trussed_requester,
-        syscaller,
-    );
-
-    let syscaller = types::Syscall::default();
-    let totp_trussed = types::TrussedClient::new(
-        totp_trussed_requester,
-        syscaller,
-    );
-
-    let syscaller = types::Syscall::default();
-    let management_trussed = types::TrussedClient::new(management_trussed_requester, syscaller);
-
-    let syscaller = types::Syscall::default();
-    let trussed_client = types::TrussedClient::new(fido_trussed_requester, syscaller);
-
-    assert!(trussed.add_endpoint(fido_trussed_responder, fido_client_id).is_ok());
-    assert!(trussed.add_endpoint(management_trussed_responder, management_client_id).is_ok());
-
-    let authnr = fido_authenticator::Authenticator::new(
-        trussed_client,
-        fido_authenticator::NonSilentAuthenticator {},
-    );
-
-    let fido = dispatch_fido::Fido::new(authnr);
-
-    let piv = piv_authenticator::Authenticator::new(piv_trussed);
-    let ndef = ndef_app::App::new();
-    let management = types::ManagementApp::new(management_trussed, hal::uuid(), build_constants::CARGO_PKG_VERSION);
-    let totp = oath_authenticator::Authenticator::new(totp_trussed);
-
     let apdu_dispatch = types::ApduDispatch::new(contact_responder, contactless_responder);
     let ctaphid_dispatch = types::CtaphidDispach::new(hid_responder);
 
@@ -564,16 +501,24 @@ pub fn init_board(
     delay_timer.cancel().ok();
     info!("init took {} ms",perf_timer.elapsed().0/1000);
 
+    let apps = types::Apps::new(
+        &mut trussed,
+        #[cfg(feature = "provisioner-app")]
+        {
+            types::ProvisionerNonPortable {
+                store,
+                stolen_filesystem: unsafe { INTERNAL_STORAGE.as_mut().unwrap() },
+                nfc_powered: is_passive_mode,
+            }
+        }
+    );
+
     (
         apdu_dispatch,
         ctaphid_dispatch,
         trussed,
 
-        piv,
-        totp,
-        fido,
-        ndef,
-        management,
+        apps,
 
         usb_classes,
         iso14443,

@@ -1,6 +1,9 @@
 include!(concat!(env!("OUT_DIR"), "/build_constants.rs"));
+use core::convert::TryInto;
+
 use crate::hal;
 use hal::drivers::{pins, timer};
+use interchange::Interchange;
 use littlefs2::const_ram_storage;
 use trussed::types::{LfsResult, LfsStorage};
 use trussed::{platform, store};
@@ -88,22 +91,201 @@ pub type Iso14443 = nfc_device::Iso14443<board::nfc::NfcChip>;
 pub type ExternalInterrupt = hal::Pint<hal::typestates::init_state::Enabled>;
 
 pub type ApduDispatch = apdu_dispatch::dispatch::ApduDispatch;
-
 pub type CtaphidDispach = ctaphid_dispatch::dispatch::Dispatch;
 
-pub type Piv = piv_authenticator::Authenticator<TrussedClient>;
-
-pub type Totp = oath_authenticator::Authenticator<TrussedClient>;
-
-pub type FidoApp<UP> = dispatch_fido::Fido<UP, TrussedClient>;
-
+#[cfg(feature = "piv-authenticator")]
+pub type PivApp = piv_authenticator::Authenticator<TrussedClient>;
+#[cfg(feature = "oath-authenticator")]
+pub type OathApp = oath_authenticator::Authenticator<TrussedClient>;
+#[cfg(feature = "fido-authenticator")]
+pub type FidoApp = dispatch_fido::Fido<fido_authenticator::NonSilentAuthenticator, TrussedClient>;
+#[cfg(feature = "management-app")]
 pub type ManagementApp = management_app::App<TrussedClient>;
+#[cfg(feature = "ndef-app")]
+pub type NdefApp = ndef_app::App<'static>;
+#[cfg(feature = "provisioner-app")]
+pub type ProvisionerApp = provisioner_app::Provisioner<Store, FlashStorage, TrussedClient>;
+
+use apdu_dispatch::{App as ApduApp, command::Size as CommandSize, response::Size as ResponseSize};
+use ctaphid_dispatch::app::{App as CtaphidApp};
 
 pub type PerfTimer = timer::Timer<ctimer::Ctimer4<hal::typestates::init_state::Enabled>>;
-
 pub type DynamicClockController = board::clock_controller::DynamicClockController;
-
-// pub type SignalPin = pins::Pio0_23;
-// pub type SignalButton = Pin<SignalPin, state::Gpio<direction::Output>>;
-
 pub type HwScheduler = timer::Timer<ctimer::Ctimer0<hal::typestates::init_state::Enabled>>;
+
+pub trait TrussedApp: Sized {
+
+    /// non-portable resources needed by this Trussed app
+    type NonPortable;
+
+    /// the desired client ID
+    const CLIENT_ID: &'static [u8];
+
+    fn with_client(trussed: TrussedClient, non_portable: Self::NonPortable) -> Self;
+
+    fn with(trussed: &mut trussed::Service<crate::Board>, non_portable: Self::NonPortable) -> Self {
+        let (trussed_requester, trussed_responder) = trussed::pipe::TrussedInterchange::claim()
+            .expect("could not setup TrussedInterchange");
+
+        let mut client_id = littlefs2::path::PathBuf::new();
+        client_id.push(Self::CLIENT_ID.try_into().unwrap());
+        assert!(trussed.add_endpoint(trussed_responder, client_id).is_ok());
+
+        let syscaller = Syscall::default();
+        let trussed_client = TrussedClient::new(
+            trussed_requester,
+            syscaller,
+        );
+
+        let app = Self::with_client(trussed_client, non_portable);
+        app
+    }
+}
+
+#[cfg(feature = "oath-authenticator")]
+impl TrussedApp for OathApp {
+    const CLIENT_ID: &'static [u8] = b"oath\0";
+
+    type NonPortable = ();
+    fn with_client(trussed: TrussedClient, _: ()) -> Self {
+        Self::new(trussed)
+    }
+}
+
+#[cfg(feature = "piv-authenticator")]
+impl TrussedApp for PivApp {
+    const CLIENT_ID: &'static [u8] = b"piv\0";
+
+    type NonPortable = ();
+    fn with_client(trussed: TrussedClient, _: ()) -> Self {
+        Self::new(trussed)
+    }
+}
+
+#[cfg(feature = "management-app")]
+impl TrussedApp for ManagementApp {
+    const CLIENT_ID: &'static [u8] = b"mgmt\0";
+
+    // TODO: declare uuid + version
+    type NonPortable = ();
+    fn with_client(trussed: TrussedClient, _: ()) -> Self {
+        Self::new(trussed, hal::uuid(), build_constants::CARGO_PKG_VERSION)
+    }
+}
+
+#[cfg(feature = "fido-authenticator")]
+impl TrussedApp for FidoApp {
+    const CLIENT_ID: &'static [u8] = b"fido\0";
+
+    type NonPortable = ();
+    fn with_client(trussed: TrussedClient, _: ()) -> Self {
+        let authnr = fido_authenticator::Authenticator::new(
+            trussed,
+            fido_authenticator::NonSilentAuthenticator {},
+        );
+
+        Self::new(authnr)
+    }
+}
+
+pub struct ProvisionerNonPortable {
+    pub store: Store,
+    pub stolen_filesystem: &'static mut FlashStorage,
+    pub nfc_powered: bool,
+}
+
+#[cfg(feature = "provisioner-app")]
+impl TrussedApp for ProvisionerApp {
+    const CLIENT_ID: &'static [u8] = b"pro\0";
+
+    type NonPortable = ProvisionerNonPortable;
+    fn with_client(trussed: TrussedClient, ProvisionerNonPortable { store, stolen_filesystem, nfc_powered }: Self::NonPortable) -> Self {
+        Self::new(trussed, store, stolen_filesystem, nfc_powered)
+    }
+
+}
+
+pub struct Apps {
+    #[cfg(feature = "management-app")]
+    pub mgmt: ManagementApp,
+    #[cfg(feature = "fido-authenticator")]
+    pub fido: FidoApp,
+    #[cfg(feature = "oath-authenticator")]
+    pub oath: OathApp,
+    #[cfg(feature = "ndef-app")]
+    pub ndef: NdefApp,
+    #[cfg(feature = "piv-authenticator")]
+    pub piv: PivApp,
+    #[cfg(feature = "provisioner-app")]
+    pub provisioner: ProvisionerApp,
+}
+
+impl Apps {
+    pub fn new(
+        trussed: &mut trussed::Service<crate::Board>,
+        #[cfg(feature = "provisioner-app")]
+        provisioner: ProvisionerNonPortable
+    ) -> Self {
+        #[cfg(feature = "management-app")]
+        let mgmt = ManagementApp::with(trussed, ());
+        #[cfg(feature = "fido-authenticator")]
+        let fido = FidoApp::with(trussed, ());
+        #[cfg(feature = "oath-authenticator")]
+        let oath = OathApp::with(trussed, ());
+        #[cfg(feature = "piv-authenticator")]
+        let piv = PivApp::with(trussed, ());
+        #[cfg(feature = "ndef-app")]
+        let ndef = NdefApp::new();
+        #[cfg(feature = "provisioner-app")]
+        let provisioner = ProvisionerApp::with(trussed, provisioner);
+
+        Self {
+            #[cfg(feature = "management-app")]
+            mgmt,
+            #[cfg(feature = "fido-authenticator")]
+            fido,
+            #[cfg(feature = "oath-authenticator")]
+            oath,
+            #[cfg(feature = "ndef-app")]
+            ndef,
+            #[cfg(feature = "piv-authenticator")]
+            piv,
+            #[cfg(feature = "provisioner-app")]
+            provisioner,
+        }
+    }
+
+    pub fn apdu_dispatch<F, T>(&mut self, f: F) -> T
+    where
+        F: FnOnce(&mut [&mut dyn
+                ApduApp<CommandSize, ResponseSize>
+            ]) -> T
+    {
+        f(&mut [
+            #[cfg(feature = "ndef-app")]
+            &mut self.ndef,
+            #[cfg(feature = "piv-authenticator")]
+            &mut self.piv,
+            #[cfg(feature = "oath-authenticator")]
+            &mut self.oath,
+            #[cfg(feature = "fido-authenticator")]
+            &mut self.fido,
+            #[cfg(feature = "management-app")]
+            &mut self.mgmt,
+            #[cfg(feature = "provisioner-app")]
+            &mut self.provisioner,
+        ])
+    }
+
+    pub fn ctaphid_dispatch<F, T>(&mut self, f: F) -> T
+    where
+        F: FnOnce(&mut [&mut dyn CtaphidApp ]) -> T
+    {
+        f(&mut [
+            #[cfg(feature = "fido-authenticator")]
+            &mut self.fido,
+            #[cfg(feature = "management-app")]
+            &mut self.mgmt,
+        ])
+    }
+}
