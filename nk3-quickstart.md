@@ -68,10 +68,23 @@ Select the features according to the device you use and the settings you want to
   * `no-encrypted-storage`: don’t encrypt the flash chip (currently required)
   * `no-reset-time-window`: allow resetting FIDO authenticator (and possibly others) even after 10s uptime
   * `develop` = `no-buttons` + `no-encrypted-storage` + `no-reset-time-window`
+  * `develop-provisioner` =  `no-buttons` + `no-encrypted-storage` + `no-reset-time-window` + `provisioner-app`
 
-If you set the `BOARD` environment variable or update the `FEATURES` variable
-in the `Makefile` accordingly, you can also use `make build-dev` to compile the
-firmware or `make objcopy-dev` to create the firmware image.
+You can also use make to compile the firmware, for example:
+
+```
+cd runners/lpc55
+make build BOARD=nk3xn DEVELOP=1
+make objcopy BOARD=nk3xn DEVELOP=1
+```
+
+`build` is not strictly necessary but gives better error messages than `objcopy` in case of compilation errors.  The Makefile supports these variables:
+
+- `BOARD`: the board to build for (one of `nk3xn`, `nk3am`, default: `nk3xn`)
+- `DEVELOP`: enables the `develop` feature if set to `1` (default: not set)
+- `PROVISIONER`: enables the `develop-provisioner` feature if set to `1` (default: not set)
+
+These variables and features are subject to change, so please consult the `Cargo.toml` and `Makefile` files for up-to-date details.
 
 ## Flash Firmware
 
@@ -90,7 +103,7 @@ $ mboot write firmware-nk3xn.bin
 
 (If you did not install the udev rules, these commands require root privilges.)
 
-You can also compile and flash the firmware in one go by running `make flash-dev`.
+You can also compile and flash the firmware in one go by running `make flash`.
 
 ## Test Firmware
 
@@ -141,6 +154,12 @@ Install the CMSIS firmware image instead of the J-Link firmware image and then:
 
 * Install `pyocd`.
 * Run `pyocd gdb -u 1042163622 -t lpc55s69`.
+
+### Using the Debugger
+
+Once the gdb server is running, you can use `cargo run`/`make run` to flash the firmware to the chip and to start the debugger.  To see the log output, enable the `log-rtt` feature for the runner and the `log-all` feature for the crate you want to debug (e. g. `oath-authenticator/log-all`).  Use `netcat localhost 19021` to actually see the log messages.  Instead of `log-all`, you can also specify a log level like `log-info`.
+
+If your multiarch gdb is not called `arm-none-eabi-gdb`, you have to edit `runners/lpc55/.cargo/config` and set the correct binary name.  For example on Debian the binary name is `gdb-multiarch`.  (You might also want to create a symlink to avoid having to update this configuration file.)
 
 ### Troubleshooting
 
