@@ -13,6 +13,7 @@ variables:
   SCRIPTS_REPO: git@git.dotplex.com:nitrokey/gitlab-ci.git
   REPO_USER: nitrokey
   REPO_NAME: solo2
+  MAIN_BRANCH: nitrokey-main
 
 size-nk3xn:
   image: nitrokey3:latest
