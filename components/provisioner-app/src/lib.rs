@@ -11,6 +11,7 @@
 #![no_std]
 
 pub mod apdu;
+pub mod ctaphid;
 
 #[macro_use]
 extern crate delog;

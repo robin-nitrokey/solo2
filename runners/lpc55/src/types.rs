@@ -298,6 +298,8 @@ impl Apps {
             &mut self.fido,
             #[cfg(feature = "admin-app")]
             &mut self.admin,
+            #[cfg(feature = "provisioner-app")]
+            &mut self.provisioner,
         ])
     }
 }
