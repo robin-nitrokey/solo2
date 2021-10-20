@@ -22,7 +22,7 @@ where S: Store,
     fn commands(&self) -> &'static [HidCommand] {
         use ctaphid_dispatch::app::Command::Vendor;
         &[
-            Vendor(COMMAND_GET_UUID),
+            Vendor(COMMAND_SELECT),
             Vendor(COMMAND_WRITE_BINARY),
             Vendor(COMMAND_WRITE_FILE),
             Vendor(COMMAND_GET_UUID),
