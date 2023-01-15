@@ -1,6 +1,6 @@
 use core::convert::TryFrom;
 use heapless::Vec;
-use interchange::{Interchange, Requester};
+use interchange::Requester;
 
 use crate::{
     constants::*,
@@ -40,16 +40,15 @@ enum Error {
     CommandNotSupported = 0x00,
 }
 
-pub struct Pipe<'alloc, Bus, I, const N: usize>
+pub struct Pipe<'alloc, Bus, const N: usize>
 where
     Bus: 'static + UsbBus,
-    I: 'static + Interchange<REQUEST = Vec<u8, N>, RESPONSE = Vec<u8, N>>,
 {
     pub(crate) write: EndpointIn<'alloc, Bus>,
     // pub(crate) rpc: TransportEndpoint<'rpc>,
     seq: u8,
     state: State,
-    interchange: Requester<I>,
+    interchange: Requester<'alloc, Vec<u8, N>, Vec<u8, N>>,
     sent: usize,
     outbox: Option<RawPacket>,
 
@@ -67,14 +66,13 @@ where
     control_abort: Option<u8>,
 }
 
-impl<'alloc, Bus, I, const N: usize> Pipe<'alloc, Bus, I, N>
+impl<'alloc, Bus, const N: usize> Pipe<'alloc, Bus, N>
 where
     Bus: 'static + UsbBus,
-    I: 'static + Interchange<REQUEST = Vec<u8, N>, RESPONSE = Vec<u8, N>>,
 {
     pub(crate) fn new(
         write: EndpointIn<'alloc, Bus>,
-        request_pipe: Requester<I>,
+        request_pipe: Requester<'alloc, Vec<u8, N>, Vec<u8, N>>,
         card_issuers_data: Option<&[u8]>,
     ) -> Self {
 
@@ -143,10 +141,9 @@ where
 }
 
 
-impl<'alloc, Bus, I, const N: usize> Pipe<'alloc, Bus, I, N>
+impl<'alloc, Bus, const N: usize> Pipe<'alloc, Bus, N>
 where
     Bus: 'static + UsbBus,
-    I: 'static + Interchange<REQUEST = Vec<u8, N>, RESPONSE = Vec<u8, N>>,
 {
     pub fn handle_packet(&mut self, packet: RawPacket) {
         use crate::types::packet::RawPacketExt;
@@ -247,7 +244,7 @@ where
         // before the interchange change (adding the request_mut method),
         // one necessary side-effect of this was to set the interchange's
         // enum variant to Request.
-        self.interchange.request(&message).ok();
+        self.interchange.request(message).ok();
         self.interchange.cancel().ok();
     }
 
@@ -391,9 +388,7 @@ where
 
         if self.outbox.is_some() { panic!(); }
 
-        // if let Some(message) = self.interchange.response() {
-            let message: &mut Vec<u8, N> = unsafe { (&mut *self.interchange.interchange.get()).rp_mut() };
-
+        if let Ok(message) = self.interchange.response() {
             let chunk_size = core::cmp::min(PACKET_SIZE - 10, message.len() - self.sent);
             let chunk = &message[self.sent..][..chunk_size];
             self.sent += chunk_size;
@@ -414,7 +409,7 @@ where
 
             // fast-lane response attempt
             self.maybe_send_packet();
-        // }
+        }
     }
 
     fn send_empty_datablock(&mut self, chain: Chain) {

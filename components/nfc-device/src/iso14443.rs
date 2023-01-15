@@ -1,6 +1,6 @@
 use core::mem::MaybeUninit;
 
-use apdu_dispatch::interchanges;
+use apdu_dispatch::Data;
 use embedded_time::duration::Milliseconds;
 use heapless::Vec;
 use interchange::Requester;
@@ -98,16 +98,16 @@ pub struct Iso14443<DEV: nfc::Device> {
     // Used to see if wtx was accepted or not
     wtx_requested: bool,
 
-    buffer: interchanges::Data,
+    buffer: Data,
 
-    interchange: Requester<interchanges::Contactless>,
+    interchange: Requester<'static, Data, Data>,
 }
 
 impl<DEV> Iso14443<DEV>
 where
     DEV: nfc::Device
 {
-    pub fn new(device: DEV, interchange: Requester<interchanges::Contactless>) -> Self {
+    pub fn new(device: DEV, interchange: Requester<'static, Data, Data>) -> Self {
         Self {
             device: device,
             state: Iso14443State::Receiving,
@@ -352,12 +352,10 @@ where
         debug!("{}", hex_str!(&self.buffer, sep:""));
         // logging::dump_hex(packet, l as usize);
 
-        let command = interchanges::Data::from_slice(&self.buffer);
+        let command = Data::from_slice(&self.buffer);
         self.buffer.clear();
-        if command.is_ok() {
-            if self.interchange.request(
-                command.as_ref().unwrap()
-            ).is_ok() {
+        if let Ok(command) = command {
+            if self.interchange.request(command).is_ok() {
                 Ok(())
             } else {
                 // Would be better to try canceling and taking on this apdu.

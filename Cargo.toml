@@ -13,12 +13,13 @@ resolver = "2"
 version = "1.2.2"
 
 [patch.crates-io]
-apdu-dispatch = { git = "https://github.com/Nitrokey/apdu-dispatch", tag = "v0.1.1-nitrokey-1" }
-interchange = { git = "https://github.com/trussed-dev/interchange", rev = "fe5633466640e1e9a8c06d9b5dd1d0af08c272af" }
+apdu-dispatch = { git = "https://github.com/robin-nitrokey/apdu-dispatch", rev = "5dd8386e201ae1d9cb4b30ea636cdeb6413baec4" }
+ctaphid-dispatch = { git = " https://github.com/robin-nitrokey/ctaphid-dispatch", rev = "15ea9ab3af7e84fdebfba0324c283bcb8fa31aa7" }
+interchange = { git = "https://github.com/sosthene-nitrokey/interchange", rev = "dcafab8d46e7dcd1210e3d45a6250b57d5b20aed" }
 littlefs2 = { git = "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-1" }
 littlefs2-sys = { git = "https://github.com/Nitrokey/littlefs2-sys", tag = "v0.1.6-nitrokey-1" }
 lpc55-hal = { git = "https://github.com/Nitrokey/lpc55-hal", tag = "v0.3.0-nitrokey-1" }
-trussed = { git = "https://github.com/Nitrokey/trussed", tag = "v0.1.0-nitrokey-4" }
+trussed = { git = "https://github.com/robin-nitrokey/trussed", rev = "9f82f2eecda5a0d65cb8de9dbfed7207fa14ddbb" }
 
 [profile.release]
 codegen-units = 1

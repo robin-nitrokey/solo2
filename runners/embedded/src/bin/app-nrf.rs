@@ -11,7 +11,7 @@ delog!(Delogger, 3 * 1024, 512, ERL::types::DelogFlusher);
 
 #[rtic::app(device = nrf52840_hal::pac, peripherals = true, dispatchers = [SWI3_EGU3, SWI4_EGU4, SWI5_EGU5])]
 mod app {
-    use super::{Delogger, ERL, ERL::soc::rtic_monotonic::RtcDuration};
+    use super::{Delogger, ERL, ERL::soc::rtic_monotonic::RtcDuration, ERL::types::INTERCHANGE};
     use nrf52840_hal::{
         gpio::{p0, p1},
         gpiote::Gpiote,
@@ -198,7 +198,7 @@ mod app {
         let platform: ERL::types::RunnerPlatform =
             ERL::types::RunnerPlatform::new(chacha_rng, store, ui);
 
-        let mut trussed_service = trussed::service::Service::new(platform);
+        let mut trussed_service = trussed::service::Service::new(platform, (), &INTERCHANGE);
 
         let apps = ERL::init_apps(&mut trussed_service, &store, !powered_by_usb);
 

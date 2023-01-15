@@ -10,7 +10,7 @@ use crate::{
     pipe::Pipe,
 };
 
-use ctaphid_dispatch::types::HidInterchange;
+use ctaphid_dispatch::types::{Request, Response};
 
 use usb_device::{
     bus::{InterfaceNumber, UsbBus, UsbBusAllocator},
@@ -31,7 +31,7 @@ impl<'alloc, Bus> CtapHid<'alloc, Bus>
 where
 	Bus: UsbBus
 {
-	pub fn new(allocate: &'alloc UsbBusAllocator<Bus>, interchange: Requester<HidInterchange>, initial_milliseconds: u32)
+	pub fn new(allocate: &'alloc UsbBusAllocator<Bus>, interchange: Requester<'alloc, Request, Response>, initial_milliseconds: u32)
         -> Self
     {
         // 64 bytes, interrupt endpoint polled every 5 milliseconds

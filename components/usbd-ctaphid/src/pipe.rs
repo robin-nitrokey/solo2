@@ -17,7 +17,7 @@ use core::convert::TryFrom;
 // pub type ContactInterchange = usbd_ccid::types::ApduInterchange;
 // pub type ContactlessInterchange = iso14443::types::ApduInterchange;
 
-use ctaphid_dispatch::types::HidInterchange;
+use ctaphid_dispatch::types::{Message, Response as InterchangeResponse};
 use ctaphid_dispatch::command::Command;
 
 use ctap_types::Error as AuthenticatorError;
@@ -129,7 +129,7 @@ pub struct Pipe<'alloc, Bus: UsbBus> {
     write_endpoint: EndpointIn<'alloc, Bus>,
     state: State,
 
-    interchange: Requester<HidInterchange>,
+    interchange: Requester<'alloc, (Command, Message), InterchangeResponse>,
 
     // shared between requests and responses, due to size
     buffer: [u8; MESSAGE_SIZE],
@@ -161,7 +161,7 @@ impl<'alloc, Bus: UsbBus> Pipe<'alloc, Bus> {
     pub(crate) fn new(
         read_endpoint: EndpointOut<'alloc, Bus>,
         write_endpoint: EndpointIn<'alloc, Bus>,
-        interchange: Requester<HidInterchange>,
+        interchange: Requester<'alloc, (Command, Message), InterchangeResponse>,
         initial_milliseconds: u32,
     ) -> Self
     {
@@ -485,7 +485,7 @@ impl<'alloc, Bus: UsbBus> Pipe<'alloc, Bus> {
                     self.interchange.take_response();
                 }
                 match self.interchange.request(
-                    &(request.command, heapless::Vec::from_slice(&self.buffer[..request.length as usize]).unwrap())
+                    (request.command, heapless::Vec::from_slice(&self.buffer[..request.length as usize]).unwrap())
                 ) {
                     Ok(_) => {
                         self.state = State::WaitingOnAuthenticator(request);

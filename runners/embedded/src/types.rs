@@ -5,10 +5,14 @@ pub use apdu_dispatch::{
     command::SIZE as ApduCommandSize, response::SIZE as ApduResponseSize, App as ApduApp,
 };
 pub use ctaphid_dispatch::app::App as CtaphidApp;
+use interchange::Interchange;
 use littlefs2::{const_ram_storage, fs::Allocation, fs::Filesystem};
+use trussed::{api::{Reply, Request}, error::Error};
 use trussed::types::{LfsResult, LfsStorage};
 use trussed::{platform, store};
 pub mod usbnfc;
+
+pub static INTERCHANGE: Interchange<Request<()>, Result<Reply, Error>, { apps::CLIENT_COUNT }> = Interchange::new();
 
 #[derive(Clone, Copy)]
 pub struct IrqNr {
@@ -96,12 +100,13 @@ pub static mut VOLATILE_FS: Option<Filesystem<VolatileStorage>> = None;
 
 platform!(
     RunnerPlatform,
+    I: (),
     R: <SocT as Soc>::Rng,
     S: RunnerStore,
     UI: <SocT as Soc>::TrussedUI,
 );
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct RunnerSyscall {}
 
 impl trussed::client::Syscall for RunnerSyscall {
@@ -111,14 +116,14 @@ impl trussed::client::Syscall for RunnerSyscall {
     }
 }
 
-pub type Trussed = trussed::Service<RunnerPlatform>;
+pub type Trussed = trussed::Service<'static, RunnerPlatform, (), { apps::CLIENT_COUNT }>;
 
 pub type Iso14443 = nfc_device::Iso14443<<SocT as Soc>::NfcDevice>;
 
-pub type ApduDispatch = apdu_dispatch::dispatch::ApduDispatch;
-pub type CtaphidDispatch = ctaphid_dispatch::dispatch::Dispatch;
+pub type ApduDispatch = apdu_dispatch::dispatch::ApduDispatch<'static>;
+pub type CtaphidDispatch = ctaphid_dispatch::dispatch::Dispatch<'static>;
 
-pub type Apps = apps::Apps<Runner>;
+pub type Apps = apps::Apps<'static, Runner>;
 
 #[derive(Debug)]
 pub struct DelogFlusher {}

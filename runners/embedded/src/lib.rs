@@ -1,7 +1,10 @@
 #![no_std]
 #![cfg_attr(feature = "alloc", feature(alloc_error_handler))]
 
-use interchange::Interchange;
+use apdu_dispatch::Data as ApduData;
+use crate::types::RunnerSyscall;
+use ctaphid_dispatch::{types::{Request as CtaphidRequest, Response as CtaphidResponse}};
+use interchange::Channel;
 use littlefs2::fs::Filesystem;
 use soc::types::Soc as SocT;
 use types::Soc;
@@ -119,12 +122,16 @@ pub fn init_usb_nfc(
     usbbus_opt: Option<&'static usb_device::bus::UsbBusAllocator<<SocT as Soc>::UsbBus>>,
     nfcdev_opt: Option<<SocT as Soc>::NfcDevice>,
 ) -> types::usbnfc::UsbNfcInit {
+    static CHANNEL_APDU_CONTACT: Channel<ApduData, ApduData> = Channel::new();
+    static CHANNEL_APDU_CONTACTLESS: Channel<ApduData, ApduData> = Channel::new();
+    static CHANNEL_CTAPHID: Channel<CtaphidRequest, CtaphidResponse> = Channel::new();
+
     let config = <SocT as Soc>::INTERFACE_CONFIG;
 
     /* claim interchanges */
-    let (ccid_rq, ccid_rp) = apdu_dispatch::interchanges::Contact::claim().unwrap();
-    let (nfc_rq, nfc_rp) = apdu_dispatch::interchanges::Contactless::claim().unwrap();
-    let (ctaphid_rq, ctaphid_rp) = ctaphid_dispatch::types::HidInterchange::claim().unwrap();
+    let (ccid_rq, ccid_rp) = CHANNEL_APDU_CONTACT.split().unwrap();
+    let (nfc_rq, nfc_rp) = CHANNEL_APDU_CONTACTLESS.split().unwrap();
+    let (ctaphid_rq, ctaphid_rp) = CHANNEL_CTAPHID.split().unwrap();
 
     /* initialize dispatchers */
     let apdu_dispatch = apdu_dispatch::dispatch::ApduDispatch::new(ccid_rp, nfc_rp);
@@ -211,7 +218,7 @@ pub fn init_apps(
         provisioner,
         _marker: Default::default(),
     };
-    types::Apps::with_service(&types::Runner, trussed, non_portable)
+    types::Apps::new(&types::Runner, trussed, &RunnerSyscall {}, non_portable)
 }
 
 #[inline(never)]
