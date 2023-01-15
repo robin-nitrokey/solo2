@@ -95,7 +95,7 @@ dependencies = [
  "provisioner-app",
  "trussed",
  "trussed-usbip",
- "usbd-ctaphid 0.0.0-unreleased",
+ "usbd-ctaphid",
 ]
 
 [[package]]
@@ -970,7 +970,7 @@ dependencies = [
  "trussed",
  "usb-device",
  "usbd-ccid",
- "usbd-ctaphid 0.0.0-unreleased",
+ "usbd-ctaphid",
  "usbd-serial",
 ]
 
@@ -1873,7 +1873,7 @@ dependencies = [
  "iso7816",
  "serde",
  "trussed",
- "usbd-ctaphid 0.0.0-unreleased (git+https://github.com/Nitrokey/nitrokey-3-firmware)",
+ "usbd-ctaphid",
 ]
 
 [[package]]
@@ -2722,7 +2722,7 @@ dependencies = [
 [[package]]
 name = "trussed"
 version = "0.1.0"
-source = "git+https://github.com/robin-nitrokey/trussed?rev=9f82f2eecda5a0d65cb8de9dbfed7207fa14ddbb#9f82f2eecda5a0d65cb8de9dbfed7207fa14ddbb"
+source = "git+https://github.com/robin-nitrokey/trussed?rev=a2114bc724dab958b69a86a1cae2e1aa50c41afa#a2114bc724dab958b69a86a1cae2e1aa50c41afa"
 dependencies = [
  "aes",
  "bitflags",
@@ -2761,14 +2761,14 @@ dependencies = [
 [[package]]
 name = "trussed-usbip"
 version = "0.0.1"
-source = "git+https://github.com/trussed-dev/pc-usbip-runner#8de2f9f3439647cacbdbd4a6e426385846adcd4b"
+source = "git+https://github.com/robin-nitrokey/pc-usbip-runner?rev=a3322eb71ee865c774ceefd5ec1c063f825fed45#a3322eb71ee865c774ceefd5ec1c063f825fed45"
 dependencies = [
  "ctaphid-dispatch",
  "interchange",
  "log",
  "trussed",
  "usb-device",
- "usbd-ctaphid 0.0.0-unreleased (git+https://github.com/Nitrokey/nitrokey-3-firmware)",
+ "usbd-ctaphid",
  "usbip-device",
 ]
 
@@ -2875,22 +2875,6 @@ dependencies = [
 [[package]]
 name = "usbd-ctaphid"
 version = "0.0.0-unreleased"
-dependencies = [
- "ctap-types",
- "ctaphid-dispatch",
- "delog",
- "embedded-time",
- "heapless 0.7.16",
- "heapless-bytes 0.3.0",
- "interchange",
- "serde",
- "usb-device",
-]
-
-[[package]]
-name = "usbd-ctaphid"
-version = "0.0.0-unreleased"
-source = "git+https://github.com/Nitrokey/nitrokey-3-firmware#2b499dbe4b68b010d61c657092dbdcf6fc71b308"
 dependencies = [
  "ctap-types",
  "ctaphid-dispatch",

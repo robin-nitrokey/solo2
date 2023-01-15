@@ -9,7 +9,7 @@ use interchange::Interchange;
 use littlefs2::{const_ram_storage, fs::Allocation, fs::Filesystem};
 use trussed::{api::{Reply, Request}, error::Error};
 use trussed::types::{LfsResult, LfsStorage};
-use trussed::{platform, store};
+use trussed::{platform, store, ClientImplementation};
 pub mod usbnfc;
 
 pub static INTERCHANGE: Interchange<Request<()>, Result<Reply, Error>, { apps::CLIENT_COUNT }> = Interchange::new();
@@ -62,7 +62,6 @@ pub trait Soc {
 pub struct Runner;
 
 impl apps::Runner for Runner {
-    type Syscall = RunnerSyscall;
     type Reboot = <SocT as Soc>::Reboot;
     #[cfg(feature = "provisioner")]
     type Store = RunnerStore;
@@ -123,7 +122,7 @@ pub type Iso14443 = nfc_device::Iso14443<<SocT as Soc>::NfcDevice>;
 pub type ApduDispatch = apdu_dispatch::dispatch::ApduDispatch<'static>;
 pub type CtaphidDispatch = ctaphid_dispatch::dispatch::Dispatch<'static>;
 
-pub type Apps = apps::Apps<'static, Runner>;
+pub type Apps = apps::Apps<ClientImplementation<'static, (), RunnerSyscall>, Runner>;
 
 #[derive(Debug)]
 pub struct DelogFlusher {}

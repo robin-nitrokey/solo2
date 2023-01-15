@@ -19,7 +19,14 @@ interchange = { git = "https://github.com/sosthene-nitrokey/interchange", rev = 
 littlefs2 = { git = "https://github.com/Nitrokey/littlefs2", tag = "v0.3.2-nitrokey-1" }
 littlefs2-sys = { git = "https://github.com/Nitrokey/littlefs2-sys", tag = "v0.1.6-nitrokey-1" }
 lpc55-hal = { git = "https://github.com/Nitrokey/lpc55-hal", tag = "v0.3.0-nitrokey-1" }
-trussed = { git = "https://github.com/robin-nitrokey/trussed", rev = "9f82f2eecda5a0d65cb8de9dbfed7207fa14ddbb" }
+trussed = { git = "https://github.com/robin-nitrokey/trussed", rev = "a2114bc724dab958b69a86a1cae2e1aa50c41afa" }
+
+[patch."https://github.com/trussed-dev/pc-usbip-runner"]
+trussed-usbip = { git = "https://github.com/robin-nitrokey/pc-usbip-runner", rev = "a3322eb71ee865c774ceefd5ec1c063f825fed45" }
+
+[patch."https://github.com/Nitrokey/nitrokey-3-firmware"]
+usbd-ccid = { path = "components/usbd-ccid" }
+usbd-ctaphid = { path = "components/usbd-ctaphid" }
 
 [profile.release]
 codegen-units = 1

@@ -677,7 +677,7 @@ impl Stage5 {
         solobee_interface.set_status(trussed::platform::ui::Status::Idle);
 
         let board = types::RunnerPlatform::new(self.rng, self.store, solobee_interface);
-        let trussed = trussed::service::Service::new(board, (), &INTERCHANGE);
+        let trussed = trussed::service::Service::new(board, &INTERCHANGE);
 
         Stage6 {
             peripherals: self.peripherals,

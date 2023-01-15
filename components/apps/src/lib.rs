@@ -5,21 +5,44 @@ use apdu_dispatch::{
 };
 use core::{marker::PhantomData, str};
 use ctaphid_dispatch::app::App as CtaphidApp;
-use trussed::{platform::Syscall, ClientImplementation, Platform, Service};
+use trussed::{client, platform::Syscall, ClientImplementation, Platform, Service};
 
 #[cfg(feature = "admin-app")]
 pub use admin_app::Reboot;
 
-pub const CLIENT_COUNT: usize =
-    cfg!(feature = "admin-app") as usize +
-    cfg!(feature = "fido-authenticator") as usize +
-    cfg!(feature = "oauth-authenticator") as usize +
-    cfg!(feature = "opcard") as usize +
-    cfg!(feature = "provisioner-app") as usize;
+pub const CLIENT_COUNT: usize = cfg!(feature = "admin-app") as usize
+    + cfg!(feature = "fido-authenticator") as usize
+    + cfg!(feature = "oauth-authenticator") as usize
+    + cfg!(feature = "opcard") as usize
+    + cfg!(feature = "provisioner-app") as usize;
+
+pub trait Client:
+    client::Client
+    + client::Aes256Cbc
+    + client::Chacha8Poly1305
+    + client::Ed255
+    + client::HmacSha1
+    + client::HmacSha256
+    + client::P256
+    + client::Sha256
+    + client::X255
+{
+}
+
+impl<C> Client for C where
+    C: client::Client
+        + client::Aes256Cbc
+        + client::Chacha8Poly1305
+        + client::Ed255
+        + client::HmacSha1
+        + client::HmacSha256
+        + client::P256
+        + client::Sha256
+        + client::X255
+{
+}
 
 pub trait Runner {
-    type Syscall: Syscall + Clone;
-
     #[cfg(feature = "admin-app")]
     type Reboot: Reboot;
     #[cfg(feature = "provisioner-app")]
@@ -34,72 +57,83 @@ pub trait Runner {
 pub struct NonPortable<R: Runner> {
     #[cfg(feature = "provisioner-app")]
     pub provisioner: ProvisionerNonPortable<R>,
+
     pub _marker: PhantomData<R>,
 }
 
-type Client<'a, R> = ClientImplementation<'a, (), <R as Runner>::Syscall>;
+pub struct Apps<C: Client, R: Runner> {
+    _marker: PhantomData<(C, R)>,
 
-#[cfg(feature = "admin-app")]
-type AdminApp<'a, R> = admin_app::App<Client<'a, R>, <R as Runner>::Reboot>;
-#[cfg(feature = "fido-authenticator")]
-type FidoApp<'a, R> =
-    fido_authenticator::Authenticator<fido_authenticator::Conforming, Client<'a, R>>;
-#[cfg(feature = "ndef-app")]
-type NdefApp = ndef_app::App<'static>;
-#[cfg(feature = "oath-authenticator")]
-type OathApp<'a, R> = oath_authenticator::Authenticator<Client<'a, R>>;
-#[cfg(feature = "opcard")]
-type OpcardApp<'a, R> = opcard::Card<Client<'a, R>>;
-#[cfg(feature = "provisioner-app")]
-type ProvisionerApp<'a, R> =
-    provisioner_app::Provisioner<<R as Runner>::Store, <R as Runner>::Filesystem, Client<'a, R>>;
-
-pub struct Apps<'a, R: Runner> {
     #[cfg(feature = "admin-app")]
-    admin: AdminApp<'a, R>,
+    admin: admin_app::App<C, R::Reboot>,
+
     #[cfg(feature = "fido-authenticator")]
-    fido: FidoApp<'a, R>,
+    fido: fido_authenticator::Authenticator<fido_authenticator::Conforming, C>,
+
     #[cfg(feature = "ndef-app")]
-    ndef: NdefApp,
+    ndef: ndef_app::App<'static>,
+
     #[cfg(feature = "oath-authenticator")]
-    oath: OathApp<'a, R>,
+    oath: oath_authenticator::Authenticator<C>,
+
     #[cfg(feature = "opcard")]
-    opcard: OpcardApp<'a, R>,
+    opcard: opcard::Card<C>,
+
     #[cfg(feature = "provisioner-app")]
-    provisioner: ProvisionerApp<'a, R>,
+    provisioner: provisioner_app::Provisioner<R::Store, R::Filesystem, C>,
 }
 
-impl<'a, R: Runner> Apps<'a, R> {
-    pub fn new<P: Platform<B = ()>>(
+impl<C: Client, R: Runner> Apps<C, R> {
+    pub fn new(
         runner: &R,
-        trussed: &mut Service<'a, P, (), CLIENT_COUNT>,
-        syscall: &R::Syscall,
+        mut make_client: impl FnMut(&str) -> C,
         non_portable: NonPortable<R>,
-    ) -> Self
-    where
-        R::Syscall: Clone,
-    {
+    ) -> Self {
         let NonPortable {
             #[cfg(feature = "provisioner-app")]
             provisioner,
             ..
         } = non_portable;
         Self {
+            _marker: Default::default(),
             #[cfg(feature = "admin-app")]
-            admin: App::new(runner, trussed, syscall, ()),
+            admin: App::new(runner, &mut make_client, ()),
             #[cfg(feature = "fido-authenticator")]
-            fido: App::new(runner, trussed, syscall, ()),
+            fido: App::new(runner, &mut make_client, ()),
             #[cfg(feature = "ndef-app")]
-            ndef: NdefApp::new(),
+            ndef: ndef_app::App::new(),
             #[cfg(feature = "oath-authenticator")]
-            oath: App::new(runner, trussed, syscall, ()),
+            oath: App::new(runner, &mut make_client, ()),
             #[cfg(feature = "opcard")]
-            opcard: App::new(runner, trussed, syscall, ()),
+            opcard: App::new(runner, &mut make_client, ()),
             #[cfg(feature = "provisioner-app")]
-            provisioner: App::new(runner, trussed, syscall, provisioner),
+            provisioner: App::new(runner, &mut make_client, provisioner),
         }
     }
+}
 
+impl<'a, R: Runner, S: Syscall + Default> Apps<ClientImplementation<'a, (), S>, R> {
+    pub fn with_service<P, const CLIENT_COUNT: usize>(
+        runner: &R,
+        trussed: &mut Service<'a, P, (), CLIENT_COUNT>,
+        non_portable: NonPortable<R>,
+    ) -> Self
+    where
+        P: Platform<B = ()>,
+    {
+        Self::new(
+            runner,
+            |id| {
+                trussed
+                    .try_new_client(id, S::default())
+                    .expect("failed to create client")
+            },
+            non_portable,
+        )
+    }
+}
+
+impl<C: Client, R: Runner> Apps<C, R> {
     pub fn apdu_dispatch<F, T>(&mut self, f: F) -> T
     where
         F: FnOnce(&mut [&mut dyn ApduApp<ApduCommandSize, ApduResponseSize>]) -> T,
@@ -138,19 +172,12 @@ impl<'a, R: Runner> Apps<'a, R> {
 }
 
 #[cfg(feature = "trussed-usbip")]
-impl<'a, R: Runner> trussed_usbip::Apps<Client<'a, R>, (&R, NonPortable<R>)> for Apps<'a, R> {
+impl<C: Client, R: Runner> trussed_usbip::Apps<C, (&R, NonPortable<R>)> for Apps<C, R> {
     fn new(
-        make_client: impl Fn(&str) -> Client<'a, R>,
+        make_client: impl Fn(&str) -> C,
         (runner, data): (&R, NonPortable<R>),
     ) -> Self {
-        Self::new(
-            runner,
-            move |id| {
-                let id = core::str::from_utf8(id).expect("invalid client id");
-                make_client(id)
-            },
-            data,
-        )
+        Self::new(runner, make_client, data)
     }
 
     fn with_ctaphid_apps<T>(&mut self, f: impl FnOnce(&mut [&mut dyn CtaphidApp]) -> T) -> T {
@@ -158,47 +185,45 @@ impl<'a, R: Runner> trussed_usbip::Apps<Client<'a, R>, (&R, NonPortable<R>)> for
     }
 }
 
-trait App<'a, R: Runner>: Sized {
+trait App<R: Runner, C: Client>: Sized {
     /// non-portable resources needed by this Trussed app
     type NonPortable;
 
     /// the desired client ID
     const CLIENT_ID: &'static [u8];
 
-    fn new<P: Platform<B = ()>>(
+    fn new(
         runner: &R,
-        trussed: &mut Service<'a, P, (), CLIENT_COUNT>,
-        syscall: &R::Syscall,
+        mut make_client: impl FnMut(&str) -> C,
         non_portable: Self::NonPortable,
     ) -> Self {
         let id = str::from_utf8(Self::CLIENT_ID).expect("invalid client ID");
-        let client = trussed
-            .try_new_client(id, syscall.clone())
-            .expect("failed to create client");
-        Self::with_client(runner, client, non_portable)
+        Self::with_client(runner, make_client(id), non_portable)
     }
 
-    fn with_client(runner: &R, trussed: Client<'a, R>, non_portable: Self::NonPortable) -> Self;
+    fn with_client(runner: &R, trussed: C, non_portable: Self::NonPortable) -> Self;
 }
 
 #[cfg(feature = "admin-app")]
-impl<'a, R: Runner> App<'a, R> for AdminApp<'a, R> {
+impl<C: Client, R: Runner> App<R, C> for admin_app::App<C, R::Reboot> {
     const CLIENT_ID: &'static [u8] = b"admin\0";
 
     type NonPortable = ();
 
-    fn with_client(runner: &R, trussed: Client<'a, R>, _: ()) -> Self {
+    fn with_client(runner: &R, trussed: C, _: ()) -> Self {
         Self::new(trussed, runner.uuid(), runner.version())
     }
 }
 
 #[cfg(feature = "fido-authenticator")]
-impl<'a, R: Runner> App<'a, R> for FidoApp<'a, R> {
+impl<C: Client, R: Runner> App<R, C>
+    for fido_authenticator::Authenticator<fido_authenticator::Conforming, C>
+{
     const CLIENT_ID: &'static [u8] = b"fido\0";
 
     type NonPortable = ();
 
-    fn with_client(_runner: &R, trussed: Client<'a, R>, _: ()) -> Self {
+    fn with_client(_runner: &R, trussed: C, _: ()) -> Self {
         fido_authenticator::Authenticator::new(
             trussed,
             fido_authenticator::Conforming {},
@@ -211,23 +236,23 @@ impl<'a, R: Runner> App<'a, R> for FidoApp<'a, R> {
 }
 
 #[cfg(feature = "oath-authenticator")]
-impl<'a, R: Runner> App<'a, R> for OathApp<'a, R> {
+impl<C: Client, R: Runner> App<R, C> for oath_authenticator::Authenticator<C> {
     const CLIENT_ID: &'static [u8] = b"oath\0";
 
     type NonPortable = ();
 
-    fn with_client(_runner: &R, trussed: Client<'a, R>, _: ()) -> Self {
+    fn with_client(_runner: &R, trussed: C, _: ()) -> Self {
         Self::new(trussed)
     }
 }
 
 #[cfg(feature = "opcard")]
-impl<'a, R: Runner> App<'a, R> for OpcardApp<'a, R> {
+impl<C: Client, R: Runner> App<R, C> for opcard::Card<C> {
     const CLIENT_ID: &'static [u8] = b"opcard\0";
 
     type NonPortable = ();
 
-    fn with_client(runner: &R, trussed: Client<'a, R>, _: ()) -> Self {
+    fn with_client(runner: &R, trussed: C, _: ()) -> Self {
         let uuid = runner.uuid();
         let mut options = opcard::Options::default();
         options.serial = [0xa0, 0x20, uuid[0], uuid[1]];
@@ -245,12 +270,12 @@ pub struct ProvisionerNonPortable<R: Runner> {
 }
 
 #[cfg(feature = "provisioner-app")]
-impl<'a, R: Runner> App<'a, R> for ProvisionerApp<'a, R> {
+impl<C: Client, R: Runner> App<R, C> for provisioner_app::Provisioner<R::Store, R::Filesystem, C> {
     const CLIENT_ID: &'static [u8] = b"attn\0";
 
     type NonPortable = ProvisionerNonPortable<R>;
 
-    fn with_client(runner: &R, trussed: Client<'a, R>, non_portable: Self::NonPortable) -> Self {
+    fn with_client(runner: &R, trussed: C, non_portable: Self::NonPortable) -> Self {
         let uuid = runner.uuid();
         Self::new(
             trussed,

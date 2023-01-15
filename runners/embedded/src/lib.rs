@@ -2,7 +2,6 @@
 #![cfg_attr(feature = "alloc", feature(alloc_error_handler))]
 
 use apdu_dispatch::Data as ApduData;
-use crate::types::RunnerSyscall;
 use ctaphid_dispatch::{types::{Request as CtaphidRequest, Response as CtaphidResponse}};
 use interchange::Channel;
 use littlefs2::fs::Filesystem;
@@ -218,7 +217,7 @@ pub fn init_apps(
         provisioner,
         _marker: Default::default(),
     };
-    types::Apps::new(&types::Runner, trussed, &RunnerSyscall {}, non_portable)
+    types::Apps::with_service(&types::Runner, trussed, non_portable)
 }
 
 #[inline(never)]

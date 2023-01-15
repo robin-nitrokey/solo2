@@ -121,8 +121,7 @@ impl<S: StoreProvider> Runner<S> {
 }
 
 impl<S: StoreProvider> apps::Runner for Runner<S> {
-    type Syscall = trussed_usbip::Syscall<virt::Platform<S>>;
-
+    // type Syscall = trussed_usbip::Syscall<Service<'a, virt::Platform<S>, (), { apps::CLIENT_COUNT }>>;
     type Reboot = Reboot;
 
     #[cfg(feature = "provisioner")]
@@ -178,13 +177,13 @@ fn main() {
 fn exec<S: StoreProvider + Clone>(store: S, options: trussed_usbip::Options, serial: Option<u128>) {
     let runner = Runner::new(serial);
     log::info!("Initializing Trussed");
-    trussed_usbip::Runner::new(store, options)
+    trussed_usbip::Runner::<_, { apps::CLIENT_COUNT }>::new(store, options)
         .init_platform(move |platform| {
             let ui: Box<dyn trussed::platform::UserInterface + Send + Sync> =
                 Box::new(UserInterface::new());
             platform.user_interface().set_inner(ui);
         })
-        .exec::<apps::Apps<Runner<S>>, _, _>(|_platform| {
+        .exec::<apps::Apps<_, Runner<S>>, _, _>(|_platform| {
             let non_portable = apps::NonPortable {
                 #[cfg(feature = "provisioner")]
                 provisioner: apps::ProvisionerNonPortable {
