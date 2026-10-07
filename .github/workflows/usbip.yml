@@ -14,14 +14,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Install Rust toolchain
         run: rustup show active-toolchain || rustup toolchain install
+      - name: Install dependencies
+        run: sudo apt-get install --yes linux-tools-common
       - name: Build usbip runner
         run: cargo build --release --manifest-path runners/usbip/Cargo.toml
       - name: Test usbip runner
         run: target/release/usbip-runner --version
       - name: Start usbip runner
         run: RUST_LOG=info target/release/usbip-runner &
-      - name: Load vhci-hcd module
-        run: lsmod | grep vhci_hcd || sudo modprobe vhci-hcd
+      - name: Show kernel information
+        run: uname -a
       - name: List usbip devices
         run: usbip list -r localhost
       - name: Attach usbip device
