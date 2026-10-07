@@ -1,0 +1,32 @@
+name: usbip
+
+on:
+  pull_request:
+  push:
+    # branches: [main]
+  workflow_dispatch:
+
+jobs:
+  usbip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Install Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Build usbip runner
+        run: cargo build --release --manifest-path runners/usbip/Cargo.toml
+      - name: Test usbip runner
+        run: target/release/usbip-runner --version
+      - name: Start usbip runner
+        run: RUST_LOG=info target/release/usbip-runner &
+      - name: Load vhci-hcd module
+        run: lsmod | grep vhci_hcd || sudo modprobe vhci-hcd
+      - name: List usbip devices
+        run: usbip list -r localhost
+      - name: Attach usbip device
+        run: sudo usbip attach -r localhost -b 1-1
+      - name: List usb devices
+        run: lsusb
+      - name: Stop usbip runner
+        run: pkill usbip-runner
